@@ -1,9 +1,21 @@
-# Smart Render archives
+# Smart Render — source and render archives
 
-This repository is configured as the destination for archived Smart Render jobs from `D:\blender\smart_render`.
+Repository for the local Windows Smart Render project at `D:\blender\smart_render`.
 
-**Important:** This repository is **public**: archived renders, GLB/BLEND source files, reports, and image assets committed here will be publicly downloadable.
+## Render retention policy
 
-The local cleanup workflow must keep the two most recently completed jobs and never remove another job until its archive is committed, pushed, and verified by downloading it back from GitHub. Failed uploads must leave source jobs untouched.
+- **Local Windows:** retain the **2 most recently completed** render jobs.
+- **GitHub (`main` branch):** retain **at most 10 recent completed jobs** under `render_archive/<job-id>/`, ordered by the timestamp in the job ID.
+- When an old local job becomes eligible, the local archiver creates a ZIP, splits it into 20 MiB Git blobs, pushes the archive **and** removes the oldest GitHub archives beyond 10 **in the same commit**, and then **re-clones the repository to check the remote ZIP SHA-256** before deleting the local job through the Smart Render API.
+- Render jobs currently queued or running and jobs marked as errors are not automatically deleted. A failed Git push or checksum check does not authorize local deletion.
+- The new archive monitor is `python archive_render_jobs.py --watch --interval 60`; the old `cleanup_render_jobs.py --watch` must stay stopped. The cleanup guard prevents direct deletion by the old cleanup script.
 
-Render archives will appear under `render_archive/` after a successful local upload. The archive script uses a short-lived temporary Git clone so old Git objects are not retained in the local project directory. For very large assets, Git LFS has storage/bandwidth limits and should be enabled only after checking the account's spending controls.
+**Important privacy warning:** This repository is **public**. Rendered images, models, Blender scenes and logs uploaded here can be read and downloaded by anyone.
+
+**Git storage warning:** Removing `render_archive/<job-id>` from the current Git branch does **not** remove the binary blobs from earlier commits or immediately reclaim the repository's historical storage. A strict storage quota needs a separate Git-history strategy or an artifact/object-storage service with real deletion and retention controls.
+
+## Recovery
+
+Each archive has `manifest.json` listing the ZIP SHA-256 and part SHA-256 values. Restore by downloading all `part-NNNN.bin` files in order, concatenating them into the original ZIP and validating its checksum before extraction.
+
+Render archive status is currently empty; this README documents the intended behavior rather than claiming an archive was uploaded.
