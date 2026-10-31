@@ -1,21 +1,28 @@
-# Smart Render — source and render archives
+# Smart Render archives
 
-Repository for the local Windows Smart Render project at `D:\blender\smart_render`.
+Smart Render Windows project: `D:\blender\smart_render`
 
-## Render retention policy
+## Retention policy (GitHub Releases assets)
 
-- **Local Windows:** retain the **2 most recently completed** render jobs.
-- **GitHub (`main` branch):** retain **at most 10 recent completed jobs** under `render_archive/<job-id>/`, ordered by the timestamp in the job ID.
-- When an old local job becomes eligible, the local archiver creates a ZIP, splits it into 20 MiB Git blobs, pushes the archive **and** removes the oldest GitHub archives beyond 10 **in the same commit**, and then **re-clones the repository to check the remote ZIP SHA-256** before deleting the local job through the Smart Render API.
-- Render jobs currently queued or running and jobs marked as errors are not automatically deleted. A failed Git push or checksum check does not authorize local deletion.
-- The new archive monitor is `python archive_render_jobs.py --watch --interval 60`; the old `cleanup_render_jobs.py --watch` must stay stopped. The cleanup guard prevents direct deletion by the old cleanup script.
+- **Windows:** retain the 2 most recently completed successful render jobs.
+- **GitHub:** retain **at most 10 Smart Render Releases**, each with a downloadable ZIP archive asset. Smart Render tags have the form `sr-render-YYYYMMDD-HHMMSS-id`.
+- Archive the old job's files, upload them using the GitHub CLI, **download them again and verify their SHA-256**, and only then delete the corresponding local job via Smart Render API.
+- GitHub retention deletes the oldest Smart Render Release **and its tag**, including the associated Release asset. It never deletes unrelated GitHub Releases, source code, or commits.
+- Queued/running jobs are never cleaned. Old failed jobs may be archived only after their error-aging window.
+- Any upload, authentication, downloaded checksum, or API failure preserves the local job.
 
-**Important privacy warning:** This repository is **public**. Rendered images, models, Blender scenes and logs uploaded here can be read and downloaded by anyone.
+**Important:** This is a **public** GitHub repository. Files uploaded as Release assets are public. Use a private repository for private character models and development assets.
 
-**Git storage warning:** Removing `render_archive/<job-id>` from the current Git branch does **not** remove the binary blobs from earlier commits or immediately reclaim the repository's historical storage. A strict storage quota needs a separate Git-history strategy or an artifact/object-storage service with real deletion and retention controls.
+**Why Releases instead of Git commits?** Removing file paths from a Git branch does not remove the older Git blobs from commit history. ZIP archives stored as Release assets are not inserted into ordinary Git commit history, and the Release asset can be deleted via GitHub's release API. GitHub CDN caching may have propagation delays; do not treat removal as an immediate privacy erasure.
 
-## Recovery
+## Setup and commands
 
-Each archive has `manifest.json` listing the ZIP SHA-256 and part SHA-256 values. Restore by downloading all `part-NNNN.bin` files in order, concatenating them into the original ZIP and validating its checksum before extraction.
+1. Stop old `cleanup_render_jobs.py --watch` instances. The installed guard also disables direct old cleanup.
+2. Install/authenticate the GitHub CLI locally: `winget install --id GitHub.cli -e`, then `gh auth login`.
+3. Run `python archive_render_jobs.py --check`.
+4. Run `python archive_render_jobs.py --once`.
+5. When successful, run one monitor: `python archive_render_jobs.py --watch --interval 60`.
 
-Render archive status is currently empty; this README documents the intended behavior rather than claiming an archive was uploaded.
+The ZIP contains `_archive_manifest.json` with SHA-256 values for source files. The archive script currently leaves separately stored generated GLBs alone unless explicitly included, because another job may still need them.
+
+The legacy `render_archive/` Git-commit layout is retired. If large binary archives were ever committed to Git history, their historic blobs require a separate, reviewed Git-history rewrite; deleting Releases does not affect those historic objects.
